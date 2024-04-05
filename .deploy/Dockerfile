@@ -5,7 +5,7 @@ COPY yarn.lock .
 
 RUN yarn install --frozen-lockfile
 
-COPY ../.github/workflows .
+COPY . .
 
 RUN yarn build
 

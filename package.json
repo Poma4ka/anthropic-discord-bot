@@ -1,9 +1,9 @@
 {
-  "name": "ai-discord-bot",
+  "name": "anthropic-discord-bot",
   "version": "1.0.0",
   "main": "./dist/main.js",
   "license": "MIT",
-  "repository": "https://github.com/poma4ka/ai-discord-bot",
+  "repository": "https://github.com/poma4ka/anthropic-discord-bot",
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",

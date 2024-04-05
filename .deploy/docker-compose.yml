@@ -1,9 +1,9 @@
 version: '3.7'
 
 services:
-  chatgpt-discord-bot:
-    container_name: ai-discord-bot
-    image: ghcr.io/poma4ka/ai-discord-bot:latest
+  anthropic-discord-bot:
+    container_name: anthropic-discord-bot
+    image: ghcr.io/poma4ka/anthropic-discord-bot:latest
     restart: always
     env_file:
       - ./.env
