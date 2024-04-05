@@ -149,7 +149,7 @@ export class DiscordService {
   }
 
   private async getCompletionMessage(message: Message): Promise<CompletionMessage> {
-    const content = `My name is ${this.discordUtilsService.getMessageAuthorName(message)}\n${message.cleanContent}`;
+    const content = `${message.cleanContent}`;
 
     const attachments: CompletionAttachment[] = [];
 

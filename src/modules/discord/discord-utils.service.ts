@@ -1,10 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { AttachmentBuilder, BaseMessageOptions, Message, TextBasedChannel } from 'discord.js';
 
 @Injectable()
 export class DiscordUtilsService {
-  private readonly logger = new Logger(this.constructor.name);
-
   async createTextAttachment(content: string, name: string): Promise<AttachmentBuilder> {
     const attachment = new AttachmentBuilder(Buffer.from(content));
     attachment.setName(name);
@@ -18,19 +16,6 @@ export class DiscordUtilsService {
     }, 10000);
 
     return () => clearInterval(interval);
-  }
-
-  getMessageAuthorName(message: Message): string {
-    const defaultNick: string = 'Unknown Alien';
-
-    try {
-      const user = message.guild?.members.cache.get(message.author.id);
-
-      return user?.nickname || message.author.displayName || message.author.username;
-    } catch (error: unknown) {
-      this.logger.error(error);
-      return defaultNick;
-    }
   }
 
   async editOrReplyMessage(
