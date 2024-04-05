@@ -71,7 +71,7 @@ export class DiscordService {
           return;
         }
 
-        content = `${content}${value}`;
+        content = `${content}${value.chunk}`;
 
         if (content) {
           if (!isReplying) {
