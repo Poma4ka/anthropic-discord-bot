@@ -140,6 +140,10 @@ export class AnthropicService {
 
     result.push(parsedMessage);
 
+    while (result[0].role === 'assistant') {
+      result.shift();
+    }
+
     return result;
   }
 
