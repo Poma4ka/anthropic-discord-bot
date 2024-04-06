@@ -40,7 +40,7 @@ export class AnthropicService {
 
     const [type] = contentType.split('/');
 
-    if (['application', 'text'].includes(type)) {
+    if (['application', 'text', 'image'].includes(type)) {
       return true;
     }
 
@@ -116,7 +116,9 @@ export class AnthropicService {
   ): Promise<MessageParam[]> {
     const result: MessageParam[] = [];
 
-    const messageLength = this.anthropicUtilsService.getMessageLength(message);
+    const parsedMessage = this.anthropicUtilsService.parseMessage(message);
+
+    const messageLength = this.anthropicUtilsService.getMessageLength(parsedMessage);
 
     while (true) {
       const previousMessage = await getPreviousMessage?.().catch(() => null);
@@ -125,16 +127,18 @@ export class AnthropicService {
         break;
       }
 
-      const previousMessageLength = this.anthropicUtilsService.getMessageLength(message);
+      const parsedMessage = this.anthropicUtilsService.parseMessage(previousMessage);
+
+      const previousMessageLength = this.anthropicUtilsService.getMessageLength(parsedMessage);
 
       if (messageLength + previousMessageLength >= this.config.maxContextLength) {
         break;
       }
 
-      result.unshift(this.anthropicUtilsService.parseMessage(previousMessage));
+      result.unshift(parsedMessage);
     }
 
-    result.push(this.anthropicUtilsService.parseMessage(message));
+    result.push(parsedMessage);
 
     return result;
   }

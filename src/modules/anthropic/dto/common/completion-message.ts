@@ -7,7 +7,7 @@ export interface CompletionAttachment {
 }
 
 export interface CompletionMessage {
-  content: string;
+  content?: string;
   attachments?: CompletionAttachment[];
   role: MessageRoleEnum;
 }

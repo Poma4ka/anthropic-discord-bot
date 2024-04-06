@@ -1,4 +1,4 @@
-import { MessageParam } from '@anthropic-ai/sdk/resources';
+import { ImageBlockParam, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources';
 import { Injectable } from '@nestjs/common';
 
 import { CompletionMessage } from './dto/common';
@@ -7,17 +7,38 @@ import { MessageRoleEnum } from './dto/enum';
 @Injectable()
 export class AnthropicUtilsService {
   parseMessage(message: CompletionMessage): MessageParam {
-    let attachments: string = '';
+    const content: Array<TextBlockParam | ImageBlockParam> = [];
+
+    if (message.content) {
+      content.push({
+        type: 'text',
+        text: message.content,
+      });
+    }
 
     if (message.attachments?.length) {
       for (const attachment of message.attachments) {
-        attachments = `${attachments}\n\n\n==========File ${attachment.name} start==========\n${attachment.content.toString()}\n==========File ${attachment.name} end==========`;
+        if (attachment.contentType?.split('/').at(0) === 'image') {
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: attachment.contentType as 'image/jpeg',
+              data: attachment.content.toString('base64'),
+            },
+          });
+        } else {
+          content.push({
+            type: 'text',
+            text: `${attachment.name}${attachment.contentType ? ` ${attachment.contentType}` : ''}:\n\n${attachment.content.toString()}`,
+          });
+        }
       }
     }
 
     return {
-      role: message.role,
-      content: `${message.content}${attachments}`,
+      role: this.mapRole(message.role),
+      content,
     };
   }
 
