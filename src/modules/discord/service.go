@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"encoding/base64"
+	"sync/atomic"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -31,32 +32,40 @@ func (s *Service) MessageCreate(client *discordgo.Session, message *discordgo.Me
 		return
 	}
 
-	recv := make(chan anthropicApi.CompletionChunk, 1)
+	completionChannel := make(chan anthropicApi.CompletionChunk, 1)
 
 	go func() {
-		err := s.Anthropic.CreateCompletionStream(context.Background(), currMessage, history, recv)
+		err := s.Anthropic.CreateCompletionStream(context.Background(), currMessage, history, completionChannel)
 		if err != nil {
 			s.logger.Error("Error create completion stream", err)
 		}
 	}()
 
-	text := ""
-	locked := false
+	var text = ""
+	var completed = atomic.Bool{}
 
-	for chunk := range recv {
-		text = *chunk.Text
+	go func() {
+		for chunk := range completionChannel {
+			text = *chunk.Text
 
-		go func() {
-			if !locked {
-				locked = true
-				reply, err = editReplyOrReply(client, reply, message, text)
-				if err != nil {
-					s.logger.Error("Error update message", err)
-				}
-				time.Sleep(100)
-				locked = false
+			if _, ok := <-completionChannel; !ok {
+				completed.Store(true)
 			}
-		}()
+		}
+	}()
+
+	for !completed.Load() {
+		if text == "" {
+			continue
+		}
+
+		editedReply, err := editReplyOrReply(client, reply, message, text)
+		if err != nil {
+			s.logger.Error("Error update message", err)
+			continue
+		}
+
+		reply = editedReply
 	}
 
 	reply, err = editReplyOrReply(client, reply, message, text)
@@ -95,25 +104,23 @@ func (s *Service) getMessagesHistory(
 	client *discordgo.Session,
 	message *discordgo.Message,
 ) (result []anthropic.Message, err error) {
-	var messages []*discordgo.Message
+	var currReference = message.ReferencedMessage
+	var totalLength uint32 = 0
 
-	currReference := message.ReferencedMessage
-
-	// todo: validate contextSize
 	for currReference != nil {
 		message, err = client.ChannelMessage(currReference.ChannelID, currReference.ID)
 		if err != nil {
 			return
 		}
 
-		messages = append([]*discordgo.Message{message}, messages...)
+		anthropicMessage := s.createAnthropicMessage(client, message)
+
+		if totalLength += getAnthropicMessageLength(&anthropicMessage); totalLength >= s.maxContextSize {
+			break
+		}
+
+		result = append([]anthropic.Message{anthropicMessage}, result...)
 		currReference = message.ReferencedMessage
-	}
-
-	result = make([]anthropic.Message, len(messages))
-
-	for i, msg := range messages {
-		result[i] = s.createAnthropicMessage(client, msg)
 	}
 
 	return

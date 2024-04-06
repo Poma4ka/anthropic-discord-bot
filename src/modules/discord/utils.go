@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/liushuangls/go-anthropic"
 	"github.com/nfnt/resize"
 
 	anthropicApi "anthropic-discord-bot/src/modules/anthropic-api"
@@ -125,4 +126,14 @@ func getMessageRole(client *discordgo.Session, message *discordgo.Message) anthr
 func isAttachmentImage(attachment *discordgo.MessageAttachment) bool {
 	var contentType = strings.Split(attachment.ContentType, "/")
 	return len(contentType) == 2 && contentType[0] == "image"
+}
+
+func getAnthropicMessageLength(message *anthropic.Message) uint32 {
+	length := 0
+	for _, content := range message.Content {
+		if content.IsTextContent() && content.Text != nil {
+			length += utf8.RuneCountInString(*content.Text)
+		}
+	}
+	return uint32(length)
 }
