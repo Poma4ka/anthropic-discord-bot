@@ -167,7 +167,7 @@ export class DiscordService {
 
         const content = await axios
           .get(attachment.url, {
-            responseType: 'text',
+            responseType: 'arraybuffer',
           })
           .then((r) => r.data);
 

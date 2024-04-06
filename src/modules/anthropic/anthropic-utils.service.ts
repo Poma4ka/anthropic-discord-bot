@@ -24,7 +24,7 @@ export class AnthropicUtilsService {
             source: {
               type: 'base64',
               media_type: attachment.contentType as 'image/jpeg',
-              data: Buffer.from(attachment.content).toString('base64'),
+              data: attachment.content.toString('base64'),
             },
           });
         } else {
