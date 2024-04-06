@@ -1,30 +1,18 @@
-FROM node:20-alpine as build
+FROM golang:1.21-alpine AS build
 
-COPY package.json .
-COPY yarn.lock .
 
-RUN yarn install --frozen-lockfile
+WORKDIR /opt/build
 
 COPY . .
 
-RUN yarn build
+RUN go mod tidy && \
+    go mod download && \
+    go build -ldflags="-s -w" -o ./dist/app ./src/main.go
 
+FROM scratch AS DEPLOY
 
-FROM node:20-alpine as install-node-modules
+COPY --from=build /opt/build/dist/app /opt/app
 
-COPY --from=build /package.json ./package.json
-COPY --from=build /yarn.lock    ./yarn.lock
+ENV GIN_MODE=release
 
-RUN yarn install --production --frozen-lockfile
-
-
-FROM node:20-alpine as deploy
-
-WORKDIR /opt/app
-
-COPY --from=build                   /dist          ./dist/
-COPY --from=install-node-modules    /node_modules  ./node_modules
-
-ENV NODE_ENV=production
-
-CMD ["node", "dist/main"]
+ENTRYPOINT ["/opt/app"]

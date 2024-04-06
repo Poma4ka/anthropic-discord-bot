@@ -1,23 +1,8 @@
-# compiled output
-/dist
-/node_modules
-package-lock.json
+# Test binary, built with `go test -c`
+*.test
 
-# Logs
-logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# OS
-.DS_Store
-
-# Tests
-/coverage
-/.nyc_output
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
 
 # IDEs and editors
 /.idea
@@ -28,6 +13,7 @@ lerna-debug.log*
 .settings/
 *.sublime-workspace
 
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
@@ -35,8 +21,14 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-/config
-/images
-
-*.tsbuildinfo
 .env
+
+# Logs
+logs
+*.log
+
+files
+storage
+dist
+tmp
+

@@ -1,0 +1,12 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "./dist/tmp"
+
+[build]
+args_bin = []
+bin = "./dist/tmp/app"
+cmd = "go build -o ./dist/tmp/app ./src/main.go"
+delay = 1000
+include_dir = ["src",".env"]
+
+
