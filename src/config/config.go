@@ -20,6 +20,9 @@ type environment struct {
 	AnthropicTemperature float32 `env-default:"1" env:"ANTHROPIC_TEMPERATURE"`
 	AnthropicTopK        int     `env-default:"250" env:"ANTHROPIC_TOP_K"`
 	AnthropicTopP        float32 `env-default:"1" env:"ANTHROPIC_TOP_P"`
+
+	CacheDir    string `env-default:"./tmp" env:"CACHE_DIR"`
+	CacheMaxAge string `env-default:"1h" env:"CACHE_MAX_AGE"`
 }
 
 var Env environment

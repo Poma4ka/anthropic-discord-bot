@@ -6,9 +6,10 @@ import (
 	"anthropic-discord-bot/src/config"
 	"anthropic-discord-bot/src/logger"
 	"anthropic-discord-bot/src/modules/anthropic-api"
+	"anthropic-discord-bot/src/modules/cache"
 )
 
-func Init(anthropic *anthropicApi.Service) (service *Service, err error) {
+func Init(anthropic *anthropicApi.Service, cache *cache.Service) (service *Service, err error) {
 	log := logger.New("DiscordModule")
 	log.Info("Initializing module...")
 
@@ -22,6 +23,7 @@ func Init(anthropic *anthropicApi.Service) (service *Service, err error) {
 
 	service = &Service{
 		Anthropic:         anthropic,
+		Cache:             cache,
 		logger:            log,
 		maxAttachmentSize: config.Env.MaxAttachmentSize,
 		maxContextSize:    config.Env.MaxContextSize,

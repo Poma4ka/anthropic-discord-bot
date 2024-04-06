@@ -8,10 +8,12 @@ import (
 
 	"anthropic-discord-bot/src/logger"
 	"anthropic-discord-bot/src/modules/anthropic-api"
+	"anthropic-discord-bot/src/modules/cache"
 )
 
 type Service struct {
 	Anthropic *anthropicApi.Service
+	Cache     *cache.Service
 	logger    *logger.Logger
 
 	maxAttachmentSize uint32
@@ -19,14 +21,11 @@ type Service struct {
 }
 
 func (s *Service) MessageCreate(client *discordgo.Session, message *discordgo.Message) (reply *discordgo.Message, err error) {
-	currMessage := createAnthropicMessage(*s.logger, client, message, s.maxAttachmentSize)
-	history, err := getMessagesHistory(*s.logger, client, message, s.maxAttachmentSize, s.maxContextSize)
+	currMessage := createAnthropicMessage(*s.logger, client, s.Cache, message, s.maxAttachmentSize)
+	history, err := getMessagesHistory(*s.logger, client, s.Cache, message, s.maxAttachmentSize, s.maxContextSize)
 	if err != nil {
 		return
 	}
-
-	stopTyping := sendTyping(*s.logger, client, message.ChannelID)
-	defer stopTyping()
 
 	recv := make(chan anthropicApi.CompletionChunk, 1)
 

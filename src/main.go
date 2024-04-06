@@ -4,6 +4,7 @@ import (
 	"anthropic-discord-bot/src/config"
 	"anthropic-discord-bot/src/logger"
 	"anthropic-discord-bot/src/modules/anthropic-api"
+	"anthropic-discord-bot/src/modules/cache"
 	"anthropic-discord-bot/src/modules/discord"
 )
 
@@ -11,12 +12,17 @@ func main() {
 	logger.Init(getLogLevel(), "App")
 	logger.SetPrefix("AnthropicDiscordBot")
 
-	service, err := anthropicApi.Init()
+	cacheService, err := cache.Init()
 	if err != nil {
 		logger.Fatal("BootstrapError", err)
 	}
 
-	_, err = discord.Init(service)
+	anthropicApiService, err := anthropicApi.Init()
+	if err != nil {
+		logger.Fatal("BootstrapError", err)
+	}
+
+	_, err = discord.Init(anthropicApiService, cacheService)
 	if err != nil {
 		logger.Fatal("BootstrapError", err)
 	}

@@ -16,6 +16,7 @@ import (
 
 	"anthropic-discord-bot/src/logger"
 	"anthropic-discord-bot/src/modules/anthropic-api"
+	"anthropic-discord-bot/src/modules/cache"
 )
 
 func sendTyping(log logger.Logger, client *discordgo.Session, channelID string) func() {
@@ -43,20 +44,32 @@ func sendTyping(log logger.Logger, client *discordgo.Session, channelID string) 
 }
 
 func editReplyOrReply(
-	client *discordgo.Session, originalReply *discordgo.Message,
+	client *discordgo.Session,
+	originalReply *discordgo.Message,
 	message *discordgo.Message,
 	content string,
 ) (reply *discordgo.Message, err error) {
 	if originalReply != nil {
-		return client.ChannelMessageEdit(originalReply.ChannelID, originalReply.ID, content)
+		newReply, err := client.ChannelMessageEdit(originalReply.ChannelID, originalReply.ID, content)
+		if err != nil {
+			return originalReply, err
+		}
+
+		return newReply, nil
 	} else {
-		return client.ChannelMessageSendReply(message.ChannelID, content, message.Reference())
+		newReply, err := client.ChannelMessageSendReply(message.ChannelID, content, message.Reference())
+		if err != nil {
+			return originalReply, err
+		}
+
+		return newReply, nil
 	}
 }
 
 func getMessagesHistory(
 	log logger.Logger,
 	client *discordgo.Session,
+	cache *cache.Service,
 	message *discordgo.Message,
 	maxAttachmentSize uint32,
 	maxContextSize uint32,
@@ -79,7 +92,7 @@ func getMessagesHistory(
 	result = make([]anthropic.Message, len(messages))
 
 	for i, msg := range messages {
-		result[i] = createAnthropicMessage(log, client, msg, maxAttachmentSize)
+		result[i] = createAnthropicMessage(log, client, cache, msg, maxAttachmentSize)
 	}
 
 	return
@@ -88,6 +101,7 @@ func getMessagesHistory(
 func createAnthropicMessage(
 	log logger.Logger,
 	client *discordgo.Session,
+	cache *cache.Service,
 	message *discordgo.Message,
 	maxAttachmentSize uint32,
 ) (result anthropic.Message) {
@@ -103,21 +117,31 @@ func createAnthropicMessage(
 	}
 
 	for _, attachment := range message.Attachments {
-		if uint32(attachment.Size) > maxAttachmentSize {
+		var contentType = strings.Split(attachment.ContentType, "/")
+		var isImage = len(contentType) == 2 && contentType[0] == "image"
+
+		if !isImage && uint32(attachment.Size) > maxAttachmentSize {
 			continue
 		}
 
-		// todo: may be get from cache???
-		data, err := downloadAttachment(log, attachment.URL)
-		if err != nil {
-			log.Error("Failed download attachment "+attachment.ID, err)
-			continue
+		var data []byte
+		var fromCache = false
+
+		if cached := cache.GetAttachment(attachment.ID); cached != nil {
+			data = *cached
+			fromCache = true
+		} else {
+			loadedData, err := downloadAttachment(log, attachment.URL)
+			if err != nil {
+				log.Error("Failed download attachment "+attachment.ID, err)
+				continue
+			}
+
+			data = loadedData
 		}
 
-		contentType := strings.Split(attachment.ContentType, "/")
-
-		if len(contentType) == 2 && contentType[0] == "image" {
-			resizedImage, err := resizeImage(data, 960)
+		if isImage {
+			resizedImage, err := resizeImage(data, 1024)
 
 			if err != nil {
 				log.Error("ResizeImageError", err)
@@ -132,6 +156,10 @@ func createAnthropicMessage(
 					Data:      base64.StdEncoding.EncodeToString(resizedImage),
 				},
 			})
+
+			if !fromCache {
+				cache.SaveAttachment(attachment.ID, &resizedImage)
+			}
 		} else {
 			text := attachment.Filename + " (" + attachment.ContentType + ")"
 
@@ -141,6 +169,10 @@ func createAnthropicMessage(
 				Type: "text",
 				Text: &text,
 			})
+
+			if !fromCache {
+				cache.SaveAttachment(attachment.ID, &data)
+			}
 		}
 	}
 
