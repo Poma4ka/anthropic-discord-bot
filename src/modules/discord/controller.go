@@ -22,7 +22,7 @@ func (c *Controller) messageCreate(client *discordgo.Session, m *discordgo.Messa
 	if !strings.Contains(m.Content, client.State.User.Mention()) && (m.ReferencedMessage == nil || m.ReferencedMessage.Author.ID != client.State.User.ID) {
 		return
 	}
-	stopTyping := sendTyping(*c.Service.logger, client, m.ChannelID)
+	stopTyping := c.Service.sendTyping(client, m.ChannelID)
 	defer stopTyping()
 
 	reply, err := c.Service.MessageCreate(client, m.Message)

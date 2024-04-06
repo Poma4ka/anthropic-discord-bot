@@ -2,46 +2,18 @@ package discord
 
 import (
 	"bytes"
-	"encoding/base64"
 	"image"
 	"image/jpeg"
 	"io"
 	"net/http"
 	"strings"
-	"time"
+	"unicode/utf8"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/liushuangls/go-anthropic"
 	"github.com/nfnt/resize"
 
-	"anthropic-discord-bot/src/logger"
-	"anthropic-discord-bot/src/modules/anthropic-api"
-	"anthropic-discord-bot/src/modules/cache"
+	anthropicApi "anthropic-discord-bot/src/modules/anthropic-api"
 )
-
-func sendTyping(log logger.Logger, client *discordgo.Session, channelID string) func() {
-	interval := time.NewTicker(10 * time.Second)
-	done := make(chan bool)
-
-	go func() {
-		for {
-			select {
-			case <-interval.C:
-				err := client.ChannelTyping(channelID)
-				if err != nil {
-					log.Error("Failed send typing to channel "+channelID, err)
-				}
-			case <-done:
-				interval.Stop()
-				return
-			}
-		}
-	}()
-
-	return func() {
-		done <- true
-	}
-}
 
 func editReplyOrReply(
 	client *discordgo.Session,
@@ -49,143 +21,46 @@ func editReplyOrReply(
 	message *discordgo.Message,
 	content string,
 ) (reply *discordgo.Message, err error) {
+	var isFile = utf8.RuneCountInString(content) > 2000
+
+	var newReply *discordgo.Message
+	var files []*discordgo.File
+
+	if isFile {
+		file := bytes.NewBufferString(content)
+
+		files = []*discordgo.File{
+			{
+				Name:        "message.md",
+				ContentType: "text/markdown",
+				Reader:      file,
+			},
+		}
+
+		content = ""
+	}
+
 	if originalReply != nil {
-		newReply, err := client.ChannelMessageEdit(originalReply.ChannelID, originalReply.ID, content)
-		if err != nil {
-			return originalReply, err
-		}
-
-		return newReply, nil
+		newReply, err = client.ChannelMessageEditComplex(&discordgo.MessageEdit{
+			Content:     &content,
+			Files:       files,
+			ID:          originalReply.ID,
+			Channel:     message.ChannelID,
+			Attachments: &[]*discordgo.MessageAttachment{},
+		})
 	} else {
-		newReply, err := client.ChannelMessageSendReply(message.ChannelID, content, message.Reference())
-		if err != nil {
-			return originalReply, err
-		}
-
-		return newReply, nil
-	}
-}
-
-func getMessagesHistory(
-	log logger.Logger,
-	client *discordgo.Session,
-	cache *cache.Service,
-	message *discordgo.Message,
-	maxAttachmentSize uint32,
-	maxContextSize uint32,
-) (result []anthropic.Message, err error) {
-	var messages []*discordgo.Message
-
-	currReference := message.ReferencedMessage
-
-	// todo: validate contextSize
-	for currReference != nil {
-		message, err = client.ChannelMessage(currReference.ChannelID, currReference.ID)
-		if err != nil {
-			return
-		}
-
-		messages = append([]*discordgo.Message{message}, messages...)
-		currReference = message.ReferencedMessage
-	}
-
-	result = make([]anthropic.Message, len(messages))
-
-	for i, msg := range messages {
-		result[i] = createAnthropicMessage(log, client, cache, msg, maxAttachmentSize)
-	}
-
-	return
-}
-
-func createAnthropicMessage(
-	log logger.Logger,
-	client *discordgo.Session,
-	cache *cache.Service,
-	message *discordgo.Message,
-	maxAttachmentSize uint32,
-) (result anthropic.Message) {
-	cleanMessage := message.ContentWithMentionsReplaced()
-
-	var content []anthropic.MessageContent
-
-	if cleanMessage != "" {
-		content = append(content, anthropic.MessageContent{
-			Type: "text",
-			Text: &cleanMessage,
+		newReply, err = client.ChannelMessageSendComplex(message.ChannelID, &discordgo.MessageSend{
+			Content:   content,
+			Files:     files,
+			Reference: message.Reference(),
 		})
 	}
 
-	for _, attachment := range message.Attachments {
-		var contentType = strings.Split(attachment.ContentType, "/")
-		var isImage = len(contentType) == 2 && contentType[0] == "image"
-
-		if !isImage && uint32(attachment.Size) > maxAttachmentSize {
-			continue
-		}
-
-		var data []byte
-		var fromCache = false
-
-		if cached := cache.GetAttachment(attachment.ID); cached != nil {
-			data = *cached
-			fromCache = true
-		} else {
-			loadedData, err := downloadAttachment(log, attachment.URL)
-			if err != nil {
-				log.Error("Failed download attachment "+attachment.ID, err)
-				continue
-			}
-
-			data = loadedData
-		}
-
-		if isImage {
-			resizedImage, err := resizeImage(data, 1024)
-
-			if err != nil {
-				log.Error("ResizeImageError", err)
-				continue
-			}
-
-			content = append(content, anthropic.MessageContent{
-				Type: "image",
-				Source: &anthropic.MessageContentImageSource{
-					Type:      "base64",
-					MediaType: "image/jpeg",
-					Data:      base64.StdEncoding.EncodeToString(resizedImage),
-				},
-			})
-
-			if !fromCache {
-				cache.SaveAttachment(attachment.ID, &resizedImage)
-			}
-		} else {
-			text := attachment.Filename + " (" + attachment.ContentType + ")"
-
-			text = text + ":\n\n" + string(data)
-
-			content = append(content, anthropic.MessageContent{
-				Type: "text",
-				Text: &text,
-			})
-
-			if !fromCache {
-				cache.SaveAttachment(attachment.ID, &data)
-			}
-		}
+	if err != nil {
+		return originalReply, err
 	}
 
-	role := anthropicApi.MessageRoleUser
-
-	if message.Author.ID == client.State.User.ID {
-		role = anthropicApi.MessageRoleAssistant
-	}
-
-	return anthropic.Message{
-		Role:    role,
-		Content: content,
-	}
+	return newReply, err
 }
 
 func resizeImage(imgBuffer []byte, maxSize uint) (result []byte, err error) {
@@ -196,6 +71,10 @@ func resizeImage(imgBuffer []byte, maxSize uint) (result []byte, err error) {
 
 	bounds := img.Bounds()
 	width, height := uint(bounds.Max.X), uint(bounds.Max.Y)
+	if width <= maxSize && height <= maxSize {
+		return imgBuffer, nil
+	}
+
 	var newWidth, newHeight uint
 	if width > height {
 		newWidth = maxSize
@@ -217,7 +96,6 @@ func resizeImage(imgBuffer []byte, maxSize uint) (result []byte, err error) {
 }
 
 func downloadAttachment(
-	log logger.Logger,
 	url string,
 ) (data []byte, err error) {
 	resp, err := http.Get(url)
@@ -225,10 +103,7 @@ func downloadAttachment(
 		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			log.Error("Failed close HTTP request", err)
-		}
+		Body.Close()
 	}(resp.Body)
 
 	data, err = io.ReadAll(resp.Body)
@@ -237,4 +112,17 @@ func downloadAttachment(
 	}
 
 	return
+}
+
+func getMessageRole(client *discordgo.Session, message *discordgo.Message) anthropicApi.MessageRole {
+	if message.Author.ID == client.State.User.ID {
+		return anthropicApi.MessageRoleAssistant
+	}
+
+	return anthropicApi.MessageRoleUser
+}
+
+func isAttachmentImage(attachment *discordgo.MessageAttachment) bool {
+	var contentType = strings.Split(attachment.ContentType, "/")
+	return len(contentType) == 2 && contentType[0] == "image"
 }
