@@ -11,6 +11,7 @@ import (
 func main() {
 	logger.Init(getLogLevel(), "App")
 	logger.SetPrefix("AnthropicDiscordBot")
+	logger.Info("Starting application...")
 
 	cacheService, err := cache.Init()
 	if err != nil {
@@ -26,6 +27,8 @@ func main() {
 	if err != nil {
 		logger.Fatal("BootstrapError", err)
 	}
+
+	logger.Info("Application started!")
 	<-make(chan struct{})
 }
 
