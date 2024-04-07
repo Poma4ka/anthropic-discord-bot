@@ -3,6 +3,8 @@ package discord
 import (
 	"context"
 	"encoding/base64"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,34 +43,46 @@ func (s *Service) MessageCreate(client *discordgo.Session, message *discordgo.Me
 		}
 	}()
 
-	var text = ""
-	var completed = atomic.Bool{}
+	var editedReply *discordgo.Message
+	var text strings.Builder
+	var editWg sync.WaitGroup
+	var isEditing atomic.Bool
 
-	go func() {
-		for chunk := range completionChannel {
-			text = *chunk.Text
+	for chunk := range completionChannel {
+		text.WriteString(*chunk.Delta)
 
-			if _, ok := <-completionChannel; !ok {
-				completed.Store(true)
+		if text.Len() == 0 {
+			continue
+		}
+
+		editWg.Add(1)
+		go func() {
+			defer editWg.Done()
+
+			if isEditing.Load() {
+				return
 			}
-		}
-	}()
 
-	for !completed.Load() {
-		if text == "" {
-			continue
-		}
+			isEditing.Swap(true)
+			defer isEditing.Swap(false)
 
-		editedReply, err := editReplyOrReply(client, reply, message, text)
-		if err != nil {
-			s.logger.Error("Error update message", err)
-			continue
-		}
-
-		reply = editedReply
+			editedReply, err = editReplyOrReply(client, reply, message, text.String())
+			if err != nil {
+				s.logger.Error("Error update message", err)
+			} else {
+				reply = editedReply
+			}
+		}()
 	}
 
-	reply, err = editReplyOrReply(client, reply, message, text)
+	editWg.Wait()
+
+	editedReply, err = editReplyOrReply(client, reply, message, text.String())
+	if err != nil {
+		s.logger.Error("Error update message", err)
+	} else {
+		reply = editedReply
+	}
 
 	return
 }
