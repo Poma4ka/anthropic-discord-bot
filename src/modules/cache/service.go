@@ -1,12 +1,19 @@
 package cache
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"anthropic-discord-bot/src/logger"
+)
+
+const (
+	attachmentsDir = "attachments"
+	messagesDir    = "messages"
 )
 
 type Service struct {
@@ -16,42 +23,97 @@ type Service struct {
 	cacheMaxAge time.Duration
 }
 
-func (s *Service) SaveAttachment(id string, content *[]byte) {
-	s.logger.Debug("Saving attachment " + id + " to cache")
-	filePath := filepath.Join(s.cacheDir, id)
-	err := os.WriteFile(filePath, *content, 0600)
+func (s *Service) saveCache(subdir []string, filename string, content *[]byte) (err error) {
+	dirPath := filepath.Join(append([]string{s.cacheDir}, subdir...)...)
+
+	err = mkdir(dirPath)
 	if err != nil {
-		s.logger.Error("Error saving attachment to cache", err)
 		return
 	}
+
+	filePath := filepath.Join(dirPath, filename)
+
+	err = os.WriteFile(filePath, *content, 777)
+
 	return
 }
 
-func (s *Service) GetAttachment(id string) (content *[]byte) {
+func (s *Service) getCache(subdir []string, filename string) (result *[]byte, err error) {
+	filePath := filepath.Join(append(append([]string{s.cacheDir}, subdir...), filename)...)
 
-	filePath := filepath.Join(s.cacheDir, id)
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			s.logger.Error("Error getting attachment from cache", err)
-		}
-		return
+		return nil, err
 	}
 
 	defer func() {
-		file, err := os.Stat(filePath)
-		if err != nil {
-			s.logger.Error("Error getting file info", err)
-		}
-		err = os.Chtimes(filePath, file.ModTime(), time.Now())
+		err = updateModTime(filePath)
 		if err != nil {
 			s.logger.Error("Error updating ModTime", err)
 		}
 	}()
 
-	s.logger.Debug("Loading attachment " + id + " from cache")
+	return &bytes, nil
+}
 
-	return &bytes
+func (s *Service) SaveAttachment(id string, content *[]byte) {
+	err := s.saveCache([]string{attachmentsDir}, id, content)
+
+	if err != nil {
+		s.logger.Error("Error saving attachment "+id+" to cache", err)
+		return
+	}
+
+	s.logger.Debug("Attachment " + id + " saved to cache")
+}
+
+func (s *Service) GetAttachment(id string) (content *[]byte) {
+	content, err := s.getCache([]string{attachmentsDir}, id)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			s.logger.Error("Error get attachment "+id+" from cache", err)
+		}
+		return
+	}
+
+	s.logger.Debug("Attachment " + id + " loaded from cache")
+	return
+}
+
+func (s *Service) SaveMessage(channelID, messageID string, message interface{}) {
+	data, err := json.Marshal(message)
+	if err != nil {
+		s.logger.Error("Error marshal message "+messageID+" to cache", err)
+		return
+	}
+
+	err = s.saveCache([]string{messagesDir, channelID}, messageID, &data)
+
+	if err != nil {
+		s.logger.Error("Error saving message "+messageID+" to cache", err)
+		return
+	}
+
+	s.logger.Debug("Message " + messageID + " saved to cache")
+}
+
+func (s *Service) GetMessage(channelID, messageID string, message interface{}) {
+	content, err := s.getCache([]string{messagesDir, channelID}, messageID)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			s.logger.Error("Error get message "+messageID+" from cache", err)
+		}
+		return
+	}
+
+	err = json.Unmarshal(*content, message)
+	if err != nil {
+		s.logger.Error("Error unmarshal message "+messageID+" from cache", err)
+		return
+	}
+
+	s.logger.Debug("Message " + messageID + " loaded from cache")
+	return
 }
 
 func (s *Service) startCacheCleanup() {
@@ -59,32 +121,37 @@ func (s *Service) startCacheCleanup() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		var cleared = 0
+		var errors = 0
+
 		s.logger.Debug("Clearing expired cache...")
-		err := filepath.Walk(s.cacheDir, func(path string, info fs.FileInfo, err error) error {
+		filepath.Walk(s.cacheDir, func(path string, info fs.FileInfo, err error) (_ error) {
 			if err != nil {
 				s.logger.Error("Error walking cache directory", err)
-				return err
+				errors++
+				return
 			}
 			if info.IsDir() {
-				return nil
+				return
 			}
 			if err != nil {
 				s.logger.Error("Error getting file info", err)
-				return err
+				errors++
+				return
 			}
 			if time.Since(info.ModTime()) > s.cacheMaxAge {
 				err = os.Remove(path)
 				if err != nil {
 					s.logger.Error("Error removing expired cache file", err)
-					return err
+					errors++
+					return
 				}
 				s.logger.Debug("Removed expired cache file: ", path)
+				cleared++
 			}
-			return nil
+			return
 		})
-		if err != nil {
-			s.logger.Error("Error clearing expired cache", err)
-		}
-		s.logger.Debug("Expired cache cleared")
+
+		s.logger.Debug("Expired cache cleared. Cleared: " + strconv.Itoa(cleared) + ". Errors: " + strconv.Itoa(errors))
 	}
 }

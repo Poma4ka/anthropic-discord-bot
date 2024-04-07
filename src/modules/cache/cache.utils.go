@@ -5,8 +5,20 @@ import (
 	"time"
 )
 
+func updateModTime(filePath string) error {
+	file, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+	err = os.Chtimes(filePath, file.ModTime(), time.Now())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func mkdir(dir string) (err error) {
-	err = os.MkdirAll(dir, 0600)
+	err = os.MkdirAll(dir, 0777)
 
 	return
 }

@@ -26,7 +26,7 @@ func (s *Service) CreateCompletionStream(ctx context.Context, message anthropic.
 
 	messageCuted := getMessageText(&message)
 
-	s.logger.Debug("Creating completion for \"" + messageCuted + "\"...")
+	s.logger.Info("Processing completion for \"" + messageCuted + "\"")
 
 	if len(history) > 1 && history[0].Role == MessageRoleAssistant {
 		history = history[1:]
@@ -68,7 +68,7 @@ func (s *Service) CreateCompletionStream(ctx context.Context, message anthropic.
 		return err
 	}
 
-	s.logger.Debug("Completion created successfully for \"" + messageCuted + "\"")
+	s.logger.Info("Completion created successfully for \"" + messageCuted + "\"")
 
 	return
 }

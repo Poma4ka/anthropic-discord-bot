@@ -94,14 +94,19 @@ func (s *Service) sendTyping(
 	interval := time.NewTicker(10 * time.Second)
 	done := make(chan bool)
 
+	sendTyping := func() {
+		err := client.ChannelTyping(channelID)
+		if err != nil {
+			s.logger.Error("Failed send typing to channel "+channelID, err)
+		}
+	}
+
 	go func() {
+		sendTyping()
 		for {
 			select {
 			case <-interval.C:
-				err := client.ChannelTyping(channelID)
-				if err != nil {
-					s.logger.Error("Failed send typing to channel "+channelID, err)
-				}
+				sendTyping()
 			case <-done:
 				interval.Stop()
 				return
@@ -122,7 +127,7 @@ func (s *Service) getMessagesHistory(
 	var totalLength uint32 = 0
 
 	for currReference != nil {
-		message, err = client.ChannelMessage(currReference.ChannelID, currReference.ID)
+		message, err = s.getMessage(client, currReference.ChannelID, currReference.ID)
 		if err != nil {
 			return
 		}
@@ -163,7 +168,7 @@ func (s *Service) createAnthropicMessage(
 				continue
 			}
 
-			data, fromCache, err := s.getAttachmentData(attachment)
+			data, fromCache, err := s.getAttachment(attachment)
 			if err != nil {
 				continue
 			}
@@ -192,7 +197,7 @@ func (s *Service) createAnthropicMessage(
 				continue
 			}
 
-			data, fromCache, err := s.getAttachmentData(attachment)
+			data, fromCache, err := s.getAttachment(attachment)
 			if err != nil {
 				continue
 			}
@@ -216,7 +221,7 @@ func (s *Service) createAnthropicMessage(
 	}
 }
 
-func (s *Service) getAttachmentData(attachment *discordgo.MessageAttachment) (data []byte, fromCache bool, err error) {
+func (s *Service) getAttachment(attachment *discordgo.MessageAttachment) (data []byte, fromCache bool, err error) {
 	if cached := s.Cache.GetAttachment(attachment.ID); cached != nil {
 		fromCache = true
 		data = *cached
@@ -226,5 +231,26 @@ func (s *Service) getAttachmentData(attachment *discordgo.MessageAttachment) (da
 			s.logger.Error("Failed download attachment "+attachment.ID, err)
 		}
 	}
+	return
+}
+
+func (s *Service) getMessage(
+	client *discordgo.Session,
+	channelID,
+	messageID string,
+) (message *discordgo.Message, err error) {
+	s.Cache.GetMessage(channelID, messageID, &message)
+
+	if message != nil {
+		return
+	}
+
+	message, err = client.ChannelMessage(channelID, messageID)
+	if err != nil {
+		return
+	}
+
+	s.Cache.SaveMessage(channelID, messageID, &message)
+
 	return
 }
