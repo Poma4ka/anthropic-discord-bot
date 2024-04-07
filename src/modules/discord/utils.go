@@ -72,23 +72,21 @@ func resizeImage(imgBuffer []byte, maxSize uint) (result []byte, err error) {
 
 	bounds := img.Bounds()
 	width, height := uint(bounds.Max.X), uint(bounds.Max.Y)
-	if width <= maxSize && height <= maxSize {
-		return imgBuffer, nil
-	}
+	if width > maxSize || height > maxSize {
+		var newWidth, newHeight uint
+		if width > height {
+			newWidth = maxSize
+			newHeight = uint(float64(height) * float64(maxSize) / float64(width))
+		} else {
+			newHeight = maxSize
+			newWidth = uint(float64(width) * float64(maxSize) / float64(height))
+		}
 
-	var newWidth, newHeight uint
-	if width > height {
-		newWidth = maxSize
-		newHeight = uint(float64(height) * float64(maxSize) / float64(width))
-	} else {
-		newHeight = maxSize
-		newWidth = uint(float64(width) * float64(maxSize) / float64(height))
+		img = resize.Resize(newWidth, newHeight, img, resize.Lanczos3)
 	}
-
-	resizedImg := resize.Resize(newWidth, newHeight, img, resize.Lanczos3)
 
 	var buf bytes.Buffer
-	err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{Quality: 960})
+	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
 	if err != nil {
 		return nil, err
 	}
