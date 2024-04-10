@@ -15,7 +15,7 @@ func (c *Controller) messageCreate(client *discordgo.Session, m *discordgo.Messa
 		return
 	}
 
-	if m.GuildID == "" {
+	if m.GuildID == "" && !c.Service.isDmAllowed(m.Author.ID) {
 		return
 	}
 

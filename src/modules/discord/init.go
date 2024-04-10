@@ -28,6 +28,7 @@ func Init(anthropic *anthropicApi.Service, cache *cache.Service) (service *Servi
 		maxAttachmentSize: config.Env.MaxAttachmentSize,
 		maxImageSize:      config.Env.MaxImageSize,
 		maxContextSize:    config.Env.MaxContextSize,
+		dmWhitelist:       config.Env.DmWhitelist,
 	}
 
 	controller := Controller{

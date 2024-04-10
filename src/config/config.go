@@ -9,10 +9,11 @@ import (
 type environment struct {
 	LogLevel string `env-default:"info" env:"LOG_LEVEL"`
 
-	DiscordBotToken   string `env-required:"true" env:"DISCORD_BOT_TOKEN"`
-	MaxAttachmentSize uint32 `env-default:"1048576" env:"MAX_ATTACHMENT_SIZE"`
-	MaxImageSize      uint32 `env-default:"10485760" env:"MAX_IMAGE_SIZE"`
-	MaxContextSize    uint32 `env-default:"50000" env:"MAX_CONTEXT_SIZE"`
+	DiscordBotToken   string   `env-required:"true" env:"DISCORD_BOT_TOKEN"`
+	MaxAttachmentSize uint32   `env-default:"1048576" env:"MAX_ATTACHMENT_SIZE"`
+	MaxImageSize      uint32   `env-default:"10485760" env:"MAX_IMAGE_SIZE"`
+	MaxContextSize    uint32   `env-default:"50000" env:"MAX_CONTEXT_SIZE"`
+	DmWhitelist       []string `env:"DM_WHITELIST"`
 
 	SystemMessage        string  `env-default:"You are bot" env:"SYSTEM_MESSAGE"`
 	AnthropicApiKey      string  `env-required:"true" env:"ANTHROPIC_API_KEY"`

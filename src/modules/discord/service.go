@@ -25,6 +25,8 @@ type Service struct {
 	maxAttachmentSize uint32
 	maxImageSize      uint32
 	maxContextSize    uint32
+
+	dmWhitelist []string
 }
 
 func (s *Service) MessageCreate(client *discordgo.Session, message *discordgo.Message) (reply *discordgo.Message, err error) {
@@ -253,4 +255,13 @@ func (s *Service) getMessage(
 	s.Cache.SaveMessage(channelID, messageID, &message)
 
 	return
+}
+
+func (s *Service) isDmAllowed(userId string) bool {
+	for _, whitelisted := range s.dmWhitelist {
+		if whitelisted == userId {
+			return true
+		}
+	}
+	return false
 }
