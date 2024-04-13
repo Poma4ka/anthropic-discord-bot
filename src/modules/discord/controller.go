@@ -19,6 +19,10 @@ func (c *Controller) messageCreate(client *discordgo.Session, m *discordgo.Messa
 		return
 	}
 
+	if m.Flags&discordgo.MessageFlagsSuppressNotifications != 0 {
+		return
+	}
+
 	if !strings.Contains(m.Content, client.State.User.Mention()) && (m.ReferencedMessage == nil || m.ReferencedMessage.Author.ID != client.State.User.ID) {
 		return
 	}
