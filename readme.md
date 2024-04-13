@@ -1,11 +1,13 @@
+## Anthropic Discord Bot
+
 ## Запуск
 
-### Если есть Docker:
+### Через Docker:
 ```shell
 make prepare && make start
 ```
 
-### Если докера нет:
+### Через Go:
 ```shell
 make prepare-raw && make start-raw
 ```
